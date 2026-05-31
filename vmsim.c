@@ -27,7 +27,7 @@ static void usage(const char *prog) {
 }
 
 /*
-Description: checks if astring is valid (non-negative decimal int) and converts it to int 
+Description: checks if a string is valid (non-negative decimal int) and converts it to int 
 Parameters: s, out 
 Return: 0 or 1 
 */
@@ -84,6 +84,7 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         return 0;
     }
     memset(o, 0, sizeof(*o)); 
+
     // set flags to false first 
     bool seen_mode = 0; 
     bool seen_base = 0; 
@@ -96,17 +97,17 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
         if (strncmp(argv[i], "--mode=", 7) == 0) 
         {
             const char *val = argv[i] + 7; 
-            if (strcmp(val, "bb")== 0)
+            if (strcmp(val, "bb") == 0 && seen_mode != 1)
             {
                 o->mode = MODE_BB;
             }
-            else if (strcmp(val, "seg")== 0)
+            else if (strcmp(val, "seg") == 0 && seen_mode != 1)
             {
                 o->mode = MODE_SEG; 
             }
             else
             {
-                fprintf(stderr, "Error: mode must be bbor seg\n");
+                fprintf(stderr, "Error: mode must be bb or seg\n");
                 return 0; 
             }
             seen_mode = 1; // set flag to true after 
@@ -148,14 +149,14 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
 
     if (!seen_mode || !seen_trace) 
     {
-        fprintf(stderr, "Errpr: missing --mode or --trace\n");
+        fprintf(stderr, "Error: missing --mode or --trace\n");
         return 0; 
     }
     if (o->mode == MODE_BB)
     {
         if (!seen_base || !seen_limit)
         {
-            fprintf(stderr, "Errpr: bb mode missing --base and --limit\n");
+            fprintf(stderr, "Error: bb mode missing --base and --limit\n");
             return 0; 
         }
         if (seen_config)
@@ -195,7 +196,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
         return 1; 
     }
     char line[256];
-    int num_line = 0; 
+    int num_line = -1; 
     while (fgets(line, sizeof(line), file)!= NULL)
     {
         num_line++; 
@@ -216,13 +217,13 @@ int run_bb(const sim_opts_t *o, stats_t *st)
         }
         if (strlen(op_str) != 1 || (op_str[0] != 'R' && op_str[0]!= 'W'))
         {
-            fprintf(stderr, "trace: %s:%d: malformed: op muust be R/W, got \"%s\"\n", o->trace_path, num_line, op_str);
+            fprintf(stderr, "trace: %s:%d: malformed: op must be R/W, got \"%s\"\n", o->trace_path, num_line, op_str);
             continue; 
         }
         long va; 
         if (!parse_uint(addr, &va))
         {
-            fprintf(stderr, "trace: %s:%d: bad adress \"%s\" (not decimal)\n", o->trace_path, num_line, addr);
+            fprintf(stderr, "trace: %s:%d: bad address \"%s\" (not decimal)\n", o->trace_path, num_line, addr);
             continue;
         }
         st->accesses++; // increment accesses count 

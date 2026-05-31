@@ -1,0 +1,5 @@
+# Format: OP SEG OFFSET (decimal only; stack OFFSET is raw non-negative)
+X code 0
+R heap 10
+W code 1
+R stack 65

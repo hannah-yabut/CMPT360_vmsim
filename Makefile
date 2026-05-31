@@ -19,14 +19,14 @@ VGFLAGS  ?= --leak-check=full --show-leak-kinds=all --track-origins=yes --errors
 .PHONY: all clean valgrind_BB valgrind_SEG vg run_BB run_SEG
 
 #Build userclean executable
-all: vsim
+all: vmsim
 
 #Link object file to into executable
-vsim: vsim.o 
+vmsim: vmsim.o 
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 #Compile source file into object file
-vsim.o: vsim.c vsim.h
+vmsim.o: vmsim.c vmsim.h
 	$(CC) $(CFLAGS) -c $<
 
 MODE ?= BB
@@ -40,22 +40,22 @@ LIMIT	?= 64
 CONFIG	?= tests/seg/three-seg.ini
 
 #Run executable automatically
-run_BB: vsim
+run_BB: vmsim
 	./vmsim --mode=bb --base=$(BASE) --limit=$(LIMIT) --trace=$(TRACE)
 
-run_SEG: vsim
+run_SEG: vmsim
 	./vmsim --mode=seg --config=$(CONFIG) --trace=$(TRACE)
 
 #Run memory leak and error detection with Valgrind by using workload.txt file as input
-valgrind_BB: vsim
-	$(VALGRIND) $(VGFLAGS) ./vsim --mode=bb --base=$(BASE) --limit=$(LIMIT) --trace=$(TRACE)
+valgrind_BB: vmsim
+	$(VALGRIND) $(VGFLAGS) ./vmsim --mode=bb --base=$(BASE) --limit=$(LIMIT) --trace=$(TRACE)
 
-valgrind_SEG: vsim
-	$(VALGRIND) $(VGFLAGS) ./vsim --mode=seg --config=$(CONFIG) --trace=$(TRACE)
+valgrind_SEG: vmsim
+	$(VALGRIND) $(VGFLAGS) ./vmsim --mode=seg --config=$(CONFIG) --trace=$(TRACE)
 
 #Alias for Valgrind
 vg: valgrind
 
 #Remove all files from directory (specifically executable and object file)
 clean:
-	rm -f vsim vsim.o
+	rm -f vmsim vmsim.o

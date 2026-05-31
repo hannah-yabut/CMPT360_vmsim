@@ -1,0 +1,5 @@
+# raw non-negative offsets only for stack
+R stack 0
+R stack -1
+R stack 63
+R stack 64

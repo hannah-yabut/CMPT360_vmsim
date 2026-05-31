@@ -1,0 +1,6 @@
+# 1: comment
+#
+R 16
+Q 32            # bad op
+W G1            # bad number (not decimal)
+R               # missing address
