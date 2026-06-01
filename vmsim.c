@@ -27,10 +27,11 @@ static void usage(const char *prog) {
 }
 
 /*
-Description: checks if a string is valid (non-negative decimal int) and converts it to int 
+Description: checks if a string is valid (non-negative decimal int) and converts it to long 
 Parameters: s, out 
 Return: 0 or 1 
 */
+// avoids accepting invalid input or translating bad addresses 
 static int parse_uint(const char *s, long *out)
 {
     if (s == NULL || *s == '\0')  // checks if string is misisng or empty 
@@ -68,12 +69,12 @@ static void clean_line(char *line)
     {
         *hash = '\0';// cuts off line at the comment 
     }
-    line[strcspn(line, "\n")] = '\0'; // removes newline chars from fgets 
+    line[strcspn(line, "\n")] = '\0'; // removes newline chars 
 }
 
 // CLI
 /*
-Description: 
+Description: validates CLI inputs 
 Parameters: 
 Return: 
 */
@@ -101,7 +102,7 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
             {
                 o->mode = MODE_BB; // store bb mode 
             }
-            else if (strcmp(val, "seg") == 0 && seen_mode != 1) // checl for seg mode 
+            else if (strcmp(val, "seg") == 0 && seen_mode != 1) // check for seg mode 
             {
                 o->mode = MODE_SEG; 
             }
@@ -196,7 +197,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
         return 1; 
     }
     char line[256]; // store lines from trace file 
-    int num_line = -1; // tracks line num 
+    int num_line = 0; // tracks line num 
     while (fgets(line, sizeof(line), file)!= NULL)
     {
         num_line++; // increment line number 
@@ -222,7 +223,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
             continue; // skip invalid operation 
         }
         long va; // store conerted address 
-        if (!parse_uint(addr, &va))  // address str to num, if not num 
+        if (!parse_uint(addr, &va))  // converts address str to num, if not num 
         {
             fprintf(stderr, "trace: %s:%d: bad address \"%s\" (not decimal)\n", o->trace_path, num_line, addr);
             continue; // skip invalid visual address 
@@ -243,7 +244,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
     fclose(file); 
     if (num_line == 0)
     {
-        fprintf("No entries in file for BB implementation!");
+        printf("No entries in file for BB implementation!");
         return 1;
     }
     printf("== stats == \n");
@@ -251,15 +252,63 @@ int run_bb(const sim_opts_t *o, stats_t *st)
     return 0; 
 }
 
-//seg
+//temp seg for milestone 1, reads and echoes config and trace files 
 /*
 Description: 
 Parameters: 
 Return: 
 */
-int run_seg(const sim_opts_t *o, stats_t *st) {
-    (void)o; (void)st;
-    fprintf(stderr, "TODO: run_seg()\n");
+int run_seg(const sim_opts_t *o, stats_t *st) 
+{
+   (void)st; // st unsused for M1 
+
+    FILE *config = fopen(o->config_path, "r"); // read config file 
+    if (config == NULL)
+    {
+        fprintf(stderr, "Error: cannot open config file %s\n", o->config_path);
+        return 1;
+    }
+
+    printf("== config ==\n");
+
+    char line[256]; // syore each line read 
+
+     while (fgets(line, sizeof(line), config) != NULL)
+    {
+        clean_line(line); // remove nl and anything after #
+
+        if (line[0] == '\0') // skip empty lines 
+        {
+            continue;
+        }
+
+        printf("%s\n", line); // echo cleaned config line 
+    }
+
+    fclose(config);
+    FILE *trace = fopen(o->trace_path, "r"); // open trace file 
+    if (trace == NULL)
+    {
+        fprintf(stderr, "Error: cannot open trace file %s\n", o->trace_path);
+        return 1;
+    }
+
+    printf("== trace ==\n");
+
+     while (fgets(line, sizeof(line), trace) != NULL) // read trace file 
+    {
+        clean_line(line);
+
+        if (line[0] == '\0')
+        {
+            continue;
+        }
+
+        printf("%s\n", line); // echo cleaned trace line 
+    }
+
+    fclose(trace); // close trace file 
+
     return 0;
 }
 
@@ -276,3 +325,4 @@ int main(int argc, char **argv) {
     if (opts.mode == MODE_BB) return run_bb(&opts, &st);
     else return run_seg(&opts, &st);
 }
+
