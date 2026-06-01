@@ -241,6 +241,11 @@ int run_bb(const sim_opts_t *o, stats_t *st)
         }
     }
     fclose(file); 
+    if (num_line == 0)
+    {
+        fprintf("No entries in file for BB implementation!");
+        return 1;
+    }
     printf("== stats == \n");
     printf("accesses=%lu, ok=%lu, faults.bounds=%lu\n", st->accesses, st->ok, st->faults_bounds);  // prints final simulation 
     return 0; 
