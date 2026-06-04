@@ -38,6 +38,7 @@ static int parse_uint(const char *s, long *out)
     {
         return 0;
     }
+
     for (int i = 0; s[i] != '\0'; i++) // loops through each char in str till null char 
     {
         if (!isdigit((unsigned char) s[i])) 
@@ -51,7 +52,7 @@ static int parse_uint(const char *s, long *out)
 
     if (errno != 0 || *end != '\0' || val < 0) // checks for errors or negatives
     {
-        return 0; 
+        return 2; 
     }
     *out = val; // stores converted val to output variable 
     return 1; 
@@ -70,6 +71,65 @@ static void clean_line(char *line)
         *hash = '\0';// cuts off line at the comment 
     }
     line[strcspn(line, "\n")] = '\0'; // removes newline chars 
+}
+
+/*
+Description:
+Parameters:
+Return:
+*/
+bool is_perms_valid(char* perms, int length) {
+    for (int i = 0; i < length; i++)
+    {
+        perms[i] = tolower((unsigned char)perms[i]);
+        if (strlen(perms) > 3 || (perms[i] != 'r' && perms[i] != 'w' && perms[i] != 'x')) // checks that operation is R or W or X
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+Description:
+Parameters:
+Return:
+*/
+void display_stats_summary(segment_t* segments, stats_t st, int num_entries) 
+{
+    printf("== stats ==\n");
+    long code_hits = 0, heap_hits = 0, stack_hits = 0;
+    for (int i = 0; i < num_entries; i++)
+    {
+        if (strcmp(segments[i].name, "code") == 0)
+        {
+            code_hits += segments[i].hits;
+        }
+        else if (strcmp(segments[i].name, "heap") == 0)
+        {
+            heap_hits += segments[i].hits;
+        }
+        else
+        {
+            stack_hits += segments[i].hits;
+        }
+    }
+    printf("accesses=%ld, ok=%ld, faults.bounds=%ld\nfaults.prot=%ld, faults.noseg=%ld\n", st.accesses, st.ok, st.faults_bounds, st.faults_prot, st.faults_noseg);
+    printf("seg_hits:");
+    if (code_hits > 0)
+    {
+        printf(" code=%ld", code_hits);
+    }
+    if (heap_hits > 0)
+    {
+        printf(" heap=%ld", heap_hits);
+    }
+    if (stack_hits > 0)
+    {
+        printf(" stack=%ld", stack_hits);
+    }
+    printf("\n");
 }
 
 // CLI
@@ -222,7 +282,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
             fprintf(stderr, "trace: %s:%d: malformed: op must be R/W, got \"%s\"\n", o->trace_path, num_line, op_str);
             continue; // skip invalid operation 
         }
-        long va; // store conerted address 
+        long va; // store converted address 
         if (!parse_uint(addr, &va))  // converts address str to num, if not num 
         {
             fprintf(stderr, "trace: %s:%d: bad address \"%s\" (not decimal)\n", o->trace_path, num_line, addr);
@@ -260,7 +320,7 @@ Return:
 */
 int run_seg(const sim_opts_t *o, stats_t *st) 
 {
-   (void)st; // st unsused for M1 
+   (void)st;
 
     FILE *config = fopen(o->config_path, "r"); // read config file 
     if (config == NULL)
@@ -269,20 +329,92 @@ int run_seg(const sim_opts_t *o, stats_t *st)
         return 1;
     }
 
-    printf("== config ==\n");
+    char line[256]; // store each line read 
+    int num_line = 0; // tracks line num 
+    int capacity = 16;
+    int num_entries = 0;
 
-    char line[256]; // syore each line read 
-
-     while (fgets(line, sizeof(line), config) != NULL)
+    segment_t* segments = (segment_t*)malloc(capacity * sizeof(segment_t));
+    if (segments == NULL)
     {
+        fprintf(stderr, "Memory allocation failed in seg!");
+        fclose(config);
+        return 1;
+    }
+
+    while (fgets(line, sizeof(line), config) != NULL)
+    {
+        num_line++;
         clean_line(line); // remove nl and anything after #
 
-        if (line[0] == '\0') // skip empty lines 
+        char segment_name[32];
+        char base[32];
+        char limit[32];
+        char perms[4]; 
+        char extra[32]; // store extra input if line has too many 
+
+        int count = sscanf(line, "%31s %31s %31s %3s %31s", segment_name, base, limit, perms, extra);
+
+        if (count == EOF || count == 0 || line[0] == '\0')
         {
+            continue; // skips blank line or comment line 
+        }
+
+        if (count != 4)
+        {
+            fprintf(stderr, "config: %s:%d: wrong shape: expected \"SEG BASE LIMIT PERMS\"\n", o->config_path, num_line);
             continue;
         }
 
-        printf("%s\n", line); // echo cleaned config line 
+        if (strcmp(segment_name, "code") != 0 && strcmp(segment_name, "heap") != 0 && strcmp(segment_name, "stack") != 0)
+        {
+            fprintf(stderr, "config: %s:%d: incorrect segment names: expected \"code or heap or stack\"\n", o->config_path, num_line);
+            continue;
+        }
+
+        long _base;
+        if (!parse_uint(base, &_base))
+        {
+            fprintf(stderr, "config: %s:%d: bad base \"%s\" (not decimal)\n", o->config_path, num_line, base);
+            continue; // skip invalid visual address 
+        }
+
+        long _limit;
+        if (!parse_uint(limit, &_limit))
+        {
+            fprintf(stderr, "config: %s:%d: bad limit \"%s\" (not decimal)\n", o->config_path, num_line, limit);
+            continue; // skip invalid visual address 
+        }
+        int length = strlen(perms);
+        if (!is_perms_valid(perms, length))
+        {
+            fprintf(stderr, "config: %s:%d: invalid perms: perms must be a combination of R/W/X, got \"%s\"\n", o->config_path, num_line, perms);
+            continue;
+        }
+
+        if (num_entries > capacity)
+        {
+            capacity *= 2;
+            // used size of pointer instead of struct 
+            segment_t* new_segments = (segment_t*)realloc(segments, capacity * sizeof(segment_t));
+
+            if (new_segments == NULL)
+            {
+                fprintf(stderr, "Memory reallocation failed in RUN_SEG!");
+                free(segments);
+                fclose(config);
+                return 1;
+            }
+            segments = new_segments;
+        }
+
+        //populate config entries into segment struct
+        strcpy(segments[num_entries].name, segment_name);
+        segments[num_entries].base = _base;
+        segments[num_entries].limit = _limit;
+        strcpy(segments[num_entries].perms, perms);
+        segments->hits = 0;
+        num_entries++;
     }
 
     fclose(config);
@@ -293,20 +425,122 @@ int run_seg(const sim_opts_t *o, stats_t *st)
         return 1;
     }
 
-    printf("== trace ==\n");
-
-     while (fgets(line, sizeof(line), trace) != NULL) // read trace file 
+    num_line = 0;
+    while (fgets(line, sizeof(line), trace) != NULL) // read trace file 
     {
-        clean_line(line);
+        num_line++;
+        clean_line(line); // remove nl and anything after #
 
-        if (line[0] == '\0')
+        char op_str[4];
+        char segment_name[32];
+        char offset[32];
+        char extra[32]; // store extra input if line has too many 
+
+        int count = sscanf(line, "%3s %31s %31s %31s", op_str, segment_name, offset, extra);
+
+        if (count == EOF || count == 0 || line[0] == '\0')
         {
+            continue; // skips blank line or comment line 
+        }
+
+        if (count != 3)
+        {
+            fprintf(stderr, "trace: %s:%d: wrong shape: expected \"OP SEG PERMS\"\n", o->trace_path, num_line);
             continue;
         }
 
-        printf("%s\n", line); // echo cleaned trace line 
-    }
+        if (strlen(op_str) != 1 || (op_str[0] != 'R' && op_str[0] != 'W' && op_str[0] != 'X')) // checks that operation is R or W or X
+        {
+            fprintf(stderr, "trace: %s:%d: malformed: op must be R/W/X, got \"%s\"\n", o->trace_path, num_line, op_str);
+            continue; // skip invalid operation 
+        }
 
+        if (strcmp(segment_name, "code") != 0 && strcmp(segment_name, "heap") != 0 && strcmp(segment_name, "stack") != 0)
+        {
+            fprintf(stderr, "trace: %s:%d: incorrect segment names: expected \"code or heap or stack\"\n", o->trace_path, num_line);
+            continue;
+        }
+
+        long _offset;
+        int parse_uint_return = parse_uint(offset, &_offset);
+        if (parse_uint_return == 0)
+        {
+            fprintf(stderr, "trace: %s:%d: bad offset \"%s\" (not decimal)\n", o->trace_path, num_line, offset);
+            continue;
+        }
+        else if (parse_uint_return == 2)
+        {
+            fprintf(stderr, "trace: %s:%d: bad offset \"%s\" (non-negative raw offset)\n", o->trace_path, num_line, offset);
+            continue;
+        }
+
+        bool no_seg = true;
+        for (int i = 0; i < num_entries; i++)
+        {
+            if (strcmp(segment_name, segments[i].name) == 0)
+            {
+                st->accesses++;
+                no_seg = false;
+                bool has_perms = false;
+                for (int j = 0; j < 3; j++)
+                {
+                    if (op_str[0] == toupper(segments[i].perms[j]))
+                    {
+                        has_perms = true;
+                        break;
+                    }
+                }
+                if (strcmp(segment_name, "stack") == 0)
+                {
+                    long offset_signed = _offset - segments[i].limit;
+                    long physical_address = segments[i].base + offset_signed;
+                    if ((offset_signed < 0 && offset_signed >= -segments[i].limit) && has_perms)
+                    {
+                        segments[i].hits++;
+                        st->ok++;
+                        printf("%-10s -> PA %ld ; ok\n", line, physical_address);
+                    }
+                    else if (!has_perms)
+                    {
+                        st->faults_prot++;
+                        printf("%-10s -> fault: PROTECTION (needed '%c', have '%s')\n", line, tolower(op_str[0]), segments[i].perms); //will need to show what perms was needed
+                    }
+                    else if (offset_signed >= 0 || offset_signed < -segments[i].limit)
+                    {
+                        st->faults_bounds++;
+                        printf("%-10s -> fault: BOUNDS\n", line);
+                    }
+                }
+                else
+                {
+                    long physical_address = segments[i].base + _offset;
+                    if (_offset < segments[i].limit && has_perms)
+                    {
+                        segments[i].hits++;
+                        st->ok++;
+                        printf("%-10s -> PA %ld ; ok\n", line, physical_address);
+                    }
+                    else if (!has_perms)
+                    {
+                        st->faults_prot++;
+                        printf("%-10s -> fault: PROTECTION (needed '%c', have '%s')\n", line, tolower(op_str[0]), segments[i].perms); //will need to show what perms was needed
+                    }
+                    else if (_offset >= segments[i].limit)
+                    {
+                        st->faults_bounds++;
+                        printf("%-10s -> fault: BOUNDS\n", line);
+                    }
+                }
+            }
+        }
+        if (no_seg)
+        {
+            st->faults_noseg++;
+            printf("%-10s -> fault: NOSEG\n", line);
+        }
+    }
+    display_stats_summary(segments, *st, num_entries);
+    free(segments);
     fclose(trace); // close trace file 
 
     return 0;

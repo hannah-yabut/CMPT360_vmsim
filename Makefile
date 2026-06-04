@@ -41,10 +41,10 @@ CONFIG	?= tests/seg/three-seg.ini
 
 #Run executable automatically
 run_BB: vmsim
-	./vmsim --mode=bb --base=$(BASE) --limit=$(LIMIT) --trace=$(TRACE)
+	./vmsim --mode=bb --base=$(BASE) --limit=$(LIMIT) --trace=tests/bb/$(TRACE)
 
 run_SEG: vmsim
-	./vmsim --mode=seg --config=$(CONFIG) --trace=$(TRACE)
+	./vmsim --mode=seg --config=tests/seg/$(CONFIG) --trace=tests/seg/$(TRACE)
 
 #Run memory leak and error detection with Valgrind by using workload.txt file as input
 valgrind_BB: vmsim
