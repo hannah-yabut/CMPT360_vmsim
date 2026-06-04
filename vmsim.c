@@ -78,11 +78,13 @@ Description:
 Parameters:
 Return:
 */
-bool is_perms_valid(char* perms, int length) {
+bool is_perms_valid(char* perms, int length) \
+{
+    //Iterate through each perms and ensure that the perms are valid and at most 3 (R/W/X)
     for (int i = 0; i < length; i++)
     {
         perms[i] = tolower((unsigned char)perms[i]);
-        if (strlen(perms) > 3 || (perms[i] != 'r' && perms[i] != 'w' && perms[i] != 'x')) // checks that operation is R or W or X
+        if (strlen(perms) > 3 || (perms[i] != 'r' && perms[i] != 'w' && perms[i] != 'x'))
         {
             return false;
         }
@@ -100,6 +102,7 @@ void display_stats_summary(segment_t* segments, stats_t st, int num_entries)
 {
     printf("== stats ==\n");
     long code_hits = 0, heap_hits = 0, stack_hits = 0;
+    //Iterate through each segments and increment the corresponding segments hits
     for (int i = 0; i < num_entries; i++)
     {
         if (strcmp(segments[i].name, "code") == 0)
@@ -257,7 +260,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
         return 1; 
     }
     char line[256]; // store lines from trace file 
-    int num_line = 0; // tracks line num 
+    int num_line = -1; // tracks line num 
     while (fgets(line, sizeof(line), file)!= NULL)
     {
         num_line++; // increment line number 
@@ -334,6 +337,7 @@ int run_seg(const sim_opts_t *o, stats_t *st)
     int capacity = 16;
     int num_entries = 0;
 
+    //Allocate memory for the segments
     segment_t* segments = (segment_t*)malloc(capacity * sizeof(segment_t));
     if (segments == NULL)
     {
@@ -360,18 +364,21 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             continue; // skips blank line or comment line 
         }
 
+        //Incorrect headers in config file
         if (count != 4)
         {
             fprintf(stderr, "config: %s:%d: wrong shape: expected \"SEG BASE LIMIT PERMS\"\n", o->config_path, num_line);
             continue;
         }
 
+        //Incorrect segment names
         if (strcmp(segment_name, "code") != 0 && strcmp(segment_name, "heap") != 0 && strcmp(segment_name, "stack") != 0)
         {
             fprintf(stderr, "config: %s:%d: incorrect segment names: expected \"code or heap or stack\"\n", o->config_path, num_line);
             continue;
         }
 
+        //Incorrect base
         long _base;
         if (!parse_uint(base, &_base))
         {
@@ -379,12 +386,15 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             continue; // skip invalid visual address 
         }
 
+        //Incorrect limit
         long _limit;
         if (!parse_uint(limit, &_limit))
         {
             fprintf(stderr, "config: %s:%d: bad limit \"%s\" (not decimal)\n", o->config_path, num_line, limit);
             continue; // skip invalid visual address 
         }
+
+        //Invalid perms
         int length = strlen(perms);
         if (!is_perms_valid(perms, length))
         {
@@ -392,6 +402,7 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             continue;
         }
 
+        //Allocate more space for the table of segments when full
         if (num_entries > capacity)
         {
             capacity *= 2;
@@ -443,18 +454,22 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             continue; // skips blank line or comment line 
         }
 
+        //Incorrect header/format
         if (count != 3)
         {
             fprintf(stderr, "trace: %s:%d: wrong shape: expected \"OP SEG PERMS\"\n", o->trace_path, num_line);
             continue;
         }
 
+        //Invalid perms
         if (strlen(op_str) != 1 || (op_str[0] != 'R' && op_str[0] != 'W' && op_str[0] != 'X')) // checks that operation is R or W or X
         {
             fprintf(stderr, "trace: %s:%d: malformed: op must be R/W/X, got \"%s\"\n", o->trace_path, num_line, op_str);
             continue; // skip invalid operation 
         }
+        
 
+        //Incorrect segment name
         if (strcmp(segment_name, "code") != 0 && strcmp(segment_name, "heap") != 0 && strcmp(segment_name, "stack") != 0)
         {
             fprintf(stderr, "trace: %s:%d: incorrect segment names: expected \"code or heap or stack\"\n", o->trace_path, num_line);
@@ -463,48 +478,59 @@ int run_seg(const sim_opts_t *o, stats_t *st)
 
         long _offset;
         int parse_uint_return = parse_uint(offset, &_offset);
+
+        //Not decimal
         if (parse_uint_return == 0)
         {
             fprintf(stderr, "trace: %s:%d: bad offset \"%s\" (not decimal)\n", o->trace_path, num_line, offset);
             continue;
         }
+        //Negative offset
         else if (parse_uint_return == 2)
         {
             fprintf(stderr, "trace: %s:%d: bad offset \"%s\" (non-negative raw offset)\n", o->trace_path, num_line, offset);
             continue;
         }
 
+        //Iterate through all the entries stored in segments and validate the segmentation
         bool no_seg = true;
         for (int i = 0; i < num_entries; i++)
         {
+            //Check if the segment name exist in the table
             if (strcmp(segment_name, segments[i].name) == 0)
             {
                 st->accesses++;
                 no_seg = false;
                 bool has_perms = false;
+                //Iterate through all the perms in a segment
                 for (int j = 0; j < 3; j++)
                 {
+                    //Check if the current segment has the correct perms
                     if (op_str[0] == toupper(segments[i].perms[j]))
                     {
                         has_perms = true;
                         break;
                     }
                 }
+                //If segment type is a stack
                 if (strcmp(segment_name, "stack") == 0)
                 {
                     long offset_signed = _offset - segments[i].limit;
                     long physical_address = segments[i].base + offset_signed;
+                    //Within bounds and has correct perms
                     if ((offset_signed < 0 && offset_signed >= -segments[i].limit) && has_perms)
                     {
                         segments[i].hits++;
                         st->ok++;
                         printf("%-10s -> PA %ld ; ok\n", line, physical_address);
                     }
+                    //Invalid perms
                     else if (!has_perms)
                     {
                         st->faults_prot++;
-                        printf("%-10s -> fault: PROTECTION (needed '%c', have '%s')\n", line, tolower(op_str[0]), segments[i].perms); //will need to show what perms was needed
+                        printf("%-10s -> fault: PROTECTION (needed '%c', have '%s')\n", line, tolower(op_str[0]), segments[i].perms);
                     }
+                    //Out of bounds
                     else if (offset_signed >= 0 || offset_signed < -segments[i].limit)
                     {
                         st->faults_bounds++;
@@ -514,17 +540,20 @@ int run_seg(const sim_opts_t *o, stats_t *st)
                 else
                 {
                     long physical_address = segments[i].base + _offset;
+                    //Within bounds and has correct perms
                     if (_offset < segments[i].limit && has_perms)
                     {
                         segments[i].hits++;
                         st->ok++;
                         printf("%-10s -> PA %ld ; ok\n", line, physical_address);
-                    }
+                    }                    
+                    //Invalid perms
                     else if (!has_perms)
                     {
                         st->faults_prot++;
                         printf("%-10s -> fault: PROTECTION (needed '%c', have '%s')\n", line, tolower(op_str[0]), segments[i].perms); //will need to show what perms was needed
                     }
+                    //Out of bounds
                     else if (_offset >= segments[i].limit)
                     {
                         st->faults_bounds++;
@@ -533,6 +562,7 @@ int run_seg(const sim_opts_t *o, stats_t *st)
                 }
             }
         }
+        //Missing segmentation in config file
         if (no_seg)
         {
             st->faults_noseg++;
