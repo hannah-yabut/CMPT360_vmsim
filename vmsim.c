@@ -14,9 +14,9 @@
 
 // usage
 /*
-Description: 
-Parameters: 
-Return: 
+Description: Prints error message when user enters incorrect/invalid command arguments
+Parameters: const char *prog - the command string
+Return: None
 */
 static void usage(const char *prog) {
     fprintf(stderr,
@@ -59,9 +59,9 @@ static int parse_uint(const char *s, long *out)
 }
 
 /*
-Description: 
-Parameters: 
-Return: 
+Description: Removes newline and comment characters
+Parameters: char *line - the line to clean
+Return: None
 */
 static void clean_line(char *line) 
 {
@@ -74,9 +74,9 @@ static void clean_line(char *line)
 }
 
 /*
-Description:
-Parameters:
-Return:
+Description: Checks if all permissions are valid
+Parameters: char* perms - the perms to validate, int length - the length of the array of perms
+Return: True if valid, False otherwise
 */
 bool is_perms_valid(char* perms, int length) \
 {
@@ -94,9 +94,9 @@ bool is_perms_valid(char* perms, int length) \
 }
 
 /*
-Description:
-Parameters:
-Return:
+Description: Prints out an overview summary of all valid and invalid accesses occured during address translations
+Parameters: segments - the array of segments, st - struct storing all valid and invalid accesses count, num_entries - # of elements in segments
+Return: None
 */
 void display_stats_summary(segment_t* segments, stats_t st, int num_entries) 
 {
@@ -138,8 +138,8 @@ void display_stats_summary(segment_t* segments, stats_t st, int num_entries)
 // CLI
 /*
 Description: validates CLI inputs 
-Parameters: 
-Return: 
+Parameters: argc - # of arguments/commands, **argv - array of character pointers, *o - object to store information about type of implementation
+Return: 1 if parsing was successful, 0 otherwise
 */
 bool parse_args(int argc, char **argv, sim_opts_t *o) 
 {
@@ -247,9 +247,9 @@ bool parse_args(int argc, char **argv, sim_opts_t *o)
 
 //bb
 /*
-Description: 
-Parameters: 
-Return: 
+Description: Read trace file and ensure that virtual address is within the specified limit (Base and Bounds check)
+Parameters: *o - object containing trace, *st -  stats summary object
+Return: 0 if succesfully extracted virtual address and within bounds, 1 otherwise
 */
 int run_bb(const sim_opts_t *o, stats_t *st) 
 {
@@ -307,7 +307,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
     fclose(file); 
     if (num_line == 0)
     {
-        fprintf(stderr, "No entries in file for BB implementation!");
+        fprintf(stderr, "No entries in trace file for BB implementation!");
         return 1;
     }
     printf("== stats == \n");
@@ -315,11 +315,10 @@ int run_bb(const sim_opts_t *o, stats_t *st)
     return 0; 
 }
 
-//temp seg for milestone 1, reads and echoes config and trace files 
 /*
-Description: 
-Parameters: 
-Return: 
+Description: Read config and trace file and ensure config segments and trace segments are valid, as well as ensure virtual address translation was applied correctly
+Parameters: *o - object containing config and trace file, *st - stats summary
+Return: 0 if succesfully extracted parameters and address translation is within bounds, 1 otherwise
 */
 int run_seg(const sim_opts_t *o, stats_t *st) 
 {
@@ -406,7 +405,7 @@ int run_seg(const sim_opts_t *o, stats_t *st)
         if (num_entries > capacity)
         {
             capacity *= 2;
-            // used size of pointer instead of struct 
+
             segment_t* new_segments = (segment_t*)realloc(segments, capacity * sizeof(segment_t));
 
             if (new_segments == NULL)
@@ -475,7 +474,6 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             fprintf(stderr, "trace: %s:%d: malformed: op must be R/W/X, got \"%s\"\n", o->trace_path, num_line, op_str);
             continue; // skip invalid operation 
         }
-        
 
         //Incorrect segment name
         if (strcmp(segment_name, "code") != 0 && strcmp(segment_name, "heap") != 0 && strcmp(segment_name, "stack") != 0)
@@ -500,8 +498,8 @@ int run_seg(const sim_opts_t *o, stats_t *st)
             continue;
         }
 
-        //Iterate through all the entries stored in segments and validate the segmentation
         bool no_seg = true;
+        //Iterate through all the entries stored in segments and validate the segmentation
         for (int i = 0; i < num_entries; i++)
         {
             //Check if the segment name exist in the table
@@ -593,12 +591,6 @@ int run_seg(const sim_opts_t *o, stats_t *st)
     return 0;
 }
 
-//main()
-/*
-Description: 
-Parameters: 
-Return: 
-*/
 int main(int argc, char **argv) {
     sim_opts_t opts;
     if (!parse_args(argc, argv, &opts)) { usage(argv[0]); return 1; }
