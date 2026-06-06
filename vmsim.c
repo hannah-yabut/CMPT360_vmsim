@@ -307,7 +307,7 @@ int run_bb(const sim_opts_t *o, stats_t *st)
     fclose(file); 
     if (num_line == 0)
     {
-        printf("No entries in file for BB implementation!");
+        fprintf(stderr, "No entries in file for BB implementation!");
         return 1;
     }
     printf("== stats == \n");
@@ -426,6 +426,14 @@ int run_seg(const sim_opts_t *o, stats_t *st)
         strcpy(segments[num_entries].perms, perms);
         segments->hits = 0;
         num_entries++;
+    }
+
+    if (num_line == 1)
+    {
+        fprintf(stderr, "No entries in config file for Segmentation implementation!");
+        free(segments);
+        fclose(config);
+        return 1;
     }
 
     fclose(config);
@@ -562,13 +570,22 @@ int run_seg(const sim_opts_t *o, stats_t *st)
                 }
             }
         }
-        //Missing segmentation in config file
+        //Missing segment in config file
         if (no_seg)
         {
             st->faults_noseg++;
             printf("%-10s -> fault: NOSEG\n", line);
         }
     }
+
+    if (num_line == 1)
+    {
+        fprintf(stderr, "No entries in trace file for Segmentation implementation!");
+        free(segments);
+        fclose(trace);
+        return 1;
+    }
+
     display_stats_summary(segments, *st, num_entries);
     free(segments);
     fclose(trace); // close trace file 
